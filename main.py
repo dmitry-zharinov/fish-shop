@@ -2,7 +2,7 @@ import os
 
 import requests
 from dotenv import load_dotenv
-
+import json
 
 def get_access_token(client_id, client_secret):
     endpoint = 'https://api.moltin.com/oauth/access_token'
@@ -27,20 +27,69 @@ def get_products(token):
     return response.json()['data']
 
 
-def add_product_to_cart(token, product):
-    cart_id = '123'
-    endpoint = f'https://api.moltin.com/v2/carts/{cart_id}/items'
+def create_cart(token, cart_name):
+    endpoint = 'https://api.moltin.com/v2/carts'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
     }
     data = {
-      'data': {
-          'id': product,
-          'type': 'cart_item',
+        'data': {
+            'name': cart_name,
         }
     }
     response = requests.post(endpoint, headers=headers, json=data)
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_cart(token, cart_id):
+    endpoint = f'https://api.moltin.com/v2/carts/{cart_id}'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+    response = requests.get(endpoint, headers=headers)
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def add_product_to_cart(token, cart_id, product):
+    endpoint = f'https://api.moltin.com/v2/carts/{cart_id}/items'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+
+    product_item = {
+        'data': {
+            'type': 'custom_item',
+            'name': product['attributes']['name'],
+            'sku': product['attributes']['sku'],
+            'description': product['attributes']['description'],
+            'quantity': 1,
+            "price": {
+                "amount": 500
+            }
+        }
+    }
+
+    custom_item = {
+      "data": {
+        "type": "custom_item",
+        "name": "My Custom Item",
+        "sku": "my-custom-item",
+        "description": "My first custom item!",
+        "quantity": 1,
+        "price": {
+          "amount": 10000
+        }
+      }
+    }
+    response = requests.post(
+        endpoint,
+        headers=headers,
+        json=custom_item)
     response.raise_for_status()
     return response.json()
 
@@ -50,28 +99,23 @@ def main():
     client_secret = os.getenv('CLIENT_SECRET'),
 
     #token = os.getenv('ACCESS_TOKEN')
+    # Получить токен
     token = get_access_token(client_id, client_secret)
     #print(token)
     products = get_products(token)
     product_1 = products[0]
     
-    test_product = {
-        "data": {
-            "id": "df32387b-6ce6-4802-9b90-1126a5c5a54f",
-            "type": "cart_item",
-            "quantity": 1,
-            "custom_inputs": {
-              "name": {
-                "T-Shirt Front": "Jane",
-                "T-Shirt Back": "Jane Doe's Dance Academy"
-               }
-            }
-        }
-    }
-    
-    print(f'Add product {product_1["id"]} to cart')
-    cart = add_product_to_cart(token, test_product)
-    print(cart)
+    # Создать корзину
+    cart = create_cart(token, 'test_cart')
+    #print(cart)
+
+    # Добавить продукт в корзину
+    #print(f'Add product {product_1["id"]} to cart')
+    add_product_to_cart(token, cart['id'], product_1)
+    #print(cart)
+    refreshed_cart = get_cart(token, cart['id'])
+    print(json.dumps(refreshed_cart, sort_keys=True, indent=4))
+
 
 if __name__ == '__main__':
     load_dotenv()  
