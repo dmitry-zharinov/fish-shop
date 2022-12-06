@@ -4,6 +4,7 @@ import requests
 from dotenv import load_dotenv
 import json
 
+
 def get_access_token(client_id, client_secret):
     endpoint = 'https://api.moltin.com/oauth/access_token'
     data = {
@@ -18,6 +19,17 @@ def get_access_token(client_id, client_secret):
 
 def get_products(token):
     endpoint = 'https://api.moltin.com/pcm/products'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+    response = requests.get(endpoint, headers=headers)
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_product(product_id, token):
+    endpoint = f'https://api.moltin.com/pcm/products/{product_id}'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
@@ -49,7 +61,10 @@ def get_cart(token, cart_id):
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
     }
-    response = requests.get(endpoint, headers=headers)
+    payload = {
+        'include': 'items'
+    }
+    response = requests.get(endpoint, headers=headers, params=payload)
     response.raise_for_status()
     return response.json()['data']
 
@@ -97,26 +112,19 @@ def add_product_to_cart(token, cart_id, product):
 def main():
     client_id = os.getenv('CLIENT_ID'),
     client_secret = os.getenv('CLIENT_SECRET'),
-
-    #token = os.getenv('ACCESS_TOKEN')
     # Получить токен
     token = get_access_token(client_id, client_secret)
-    #print(token)
     products = get_products(token)
     product_1 = products[0]
-    
+
     # Создать корзину
     cart = create_cart(token, 'test_cart')
-    #print(cart)
-
     # Добавить продукт в корзину
-    #print(f'Add product {product_1["id"]} to cart')
     add_product_to_cart(token, cart['id'], product_1)
-    #print(cart)
     refreshed_cart = get_cart(token, cart['id'])
     print(json.dumps(refreshed_cart, sort_keys=True, indent=4))
 
 
 if __name__ == '__main__':
-    load_dotenv()  
+    load_dotenv()
     main()
