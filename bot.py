@@ -7,7 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
 
-from moltin import (get_access_token, get_file_by_id, get_product,
+from moltin import (get_access_token, get_product,
                     download_product_image, get_products)
 
 _database = None
@@ -24,7 +24,7 @@ def start(update, context):
         for product in products
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('Please choose:', reply_markup=reply_markup)
+    update.message.reply_text('Выберите товар:', reply_markup=reply_markup)
     return 'HANDLE_MENU'
 
 
@@ -39,18 +39,45 @@ def handle_menu(update, context):
     product_id = callback
     product = get_product(product_id, moltin_token)
     image_id = product['relationships']['main_image']['data']['id']
-    logging.info(f'image_id: {image_id}')
-    product_image = download_product_image(image_id, moltin_token)
-    logging.info(f'product_image: {product_image}')
 
+    product_image = download_product_image(image_id, moltin_token)
     product_description = product['attributes']['description']
+
+    reply_markup = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Назад", callback_data="go_back")]])
+
     with open(product_image, 'rb') as photo:
         context.bot.send_photo(
             chat_id=update.effective_chat.id,
             photo=photo,
             caption=product_description,
+            reply_markup=reply_markup,
         )
     return 'HANDLE_MENU'
+
+
+def handle_description(update, context):
+    db = context.bot_data['db']
+    moltin_token = db.get('moltin_token').decode('utf-8')
+    callback = update.callback_query.data
+    if callback == 'go_back':
+        context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.callback_query.message.message_id,
+        )
+        products = get_products(moltin_token)
+        keyboard = [
+            [InlineKeyboardButton(product['attributes']['name'],
+                                  callback_data=product['id'])]
+            for product in products
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберите товар:',
+            reply_markup=reply_markup
+        )
+        return 'HANDLE_MENU'
 
 
 def handle_users_reply(update, context):
@@ -65,12 +92,15 @@ def handle_users_reply(update, context):
         return
     if user_reply == '/start':
         user_state = 'START'
+    elif user_reply == 'go_back':
+        user_state = 'HANDLE_DESCRIPTION'
     else:
         user_state = db.get(chat_id).decode('utf-8')
 
     states_functions = {
         'START': start,
         'HANDLE_MENU': handle_menu,
+        'HANDLE_DESCRIPTION': handle_description,
     }
     state_handler = states_functions[user_state]
     try:

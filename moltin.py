@@ -1,9 +1,8 @@
-import os
 import logging
+import os
 
 import requests
 from dotenv import load_dotenv
-import json
 
 
 def get_access_token(client_id, client_secret):
@@ -46,7 +45,6 @@ def get_product_image(product_id, token):
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
     }
-    logging.info(f'endpoint: {endpoint}')
     response = requests.get(endpoint, headers=headers)
     response.raise_for_status()
     return response.json()['data']
@@ -65,12 +63,13 @@ def download_product_image(image_id, token):
 
     image_url = decoded_response['link']['href']
     image_name = decoded_response['file_name']
+    image_path = os.path.join('tmp', image_name)
 
     response = requests.get(image_url)
     response.raise_for_status()
-    with open(image_name, 'wb') as file:
+    with open(image_path, 'wb') as file:
         file.write(response.content)
-    return image_name
+    return image_path
 
 
 def get_file_by_id(file_id, token):
@@ -159,7 +158,6 @@ def main():
     client_secret = os.getenv('CLIENT_SECRET'),
     # Получить токен
     token = get_access_token(client_id, client_secret)
-    logging.info(f'token: {token}')
     products = get_products(token)
     #product_1 = products[0]
 
