@@ -1,4 +1,5 @@
 import os
+import logging
 
 import requests
 from dotenv import load_dotenv
@@ -35,6 +36,50 @@ def get_product(product_id, token):
         'Content-Type': 'application/json',
     }
     response = requests.get(endpoint, headers=headers)
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_product_image(product_id, token):
+    endpoint = f'https://api.moltin.com/pcm/products/{product_id}/relationships/main-image'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+    logging.info(f'endpoint: {endpoint}')
+    response = requests.get(endpoint, headers=headers)
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def download_product_image(image_id, token):
+    endpoint = f'https://api.moltin.com/v2/files/{image_id}'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+    response = requests.get(endpoint, headers=headers)
+
+    response.raise_for_status()
+    decoded_response = response.json()['data']
+
+    image_url = decoded_response['link']['href']
+    image_name = decoded_response['file_name']
+
+    response = requests.get(image_url)
+    response.raise_for_status()
+    with open(image_name, 'wb') as file:
+        file.write(response.content)
+    return image_name
+
+
+def get_file_by_id(file_id, token):
+    endpoint = f'https://api.moltin.com/v2/files/{file_id}'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+    response = requests.post(endpoint, headers=headers)
     response.raise_for_status()
     return response.json()['data']
 
@@ -114,17 +159,20 @@ def main():
     client_secret = os.getenv('CLIENT_SECRET'),
     # Получить токен
     token = get_access_token(client_id, client_secret)
+    logging.info(f'token: {token}')
     products = get_products(token)
-    product_1 = products[0]
+    #product_1 = products[0]
 
     # Создать корзину
-    cart = create_cart(token, 'test_cart')
+    #cart = create_cart(token, 'test_cart')
     # Добавить продукт в корзину
-    add_product_to_cart(token, cart['id'], product_1)
-    refreshed_cart = get_cart(token, cart['id'])
-    print(json.dumps(refreshed_cart, sort_keys=True, indent=4))
+    #add_product_to_cart(token, cart['id'], product_1)
+    #refreshed_cart = get_cart(token, cart['id'])
+    #print(json.dumps(refreshed_cart, sort_keys=True, indent=4))
 
 
 if __name__ == '__main__':
     load_dotenv()
+    logging.basicConfig(level=logging.INFO)
+
     main()

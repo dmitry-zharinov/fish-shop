@@ -7,7 +7,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
 
-from moltin import get_access_token, get_product, get_products
+from moltin import (get_access_token, get_file_by_id, get_product,
+                    download_product_image, get_products)
 
 _database = None
 logger = logging.getLogger('tg-bot')
@@ -37,11 +38,18 @@ def handle_menu(update, context):
     callback = update.callback_query.data
     product_id = callback
     product = get_product(product_id, moltin_token)
+    image_id = product['relationships']['main_image']['data']['id']
+    logging.info(f'image_id: {image_id}')
+    product_image = download_product_image(image_id, moltin_token)
+    logging.info(f'product_image: {product_image}')
+
     product_description = product['attributes']['description']
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=product_description
-    )
+    with open(product_image, 'rb') as photo:
+        context.bot.send_photo(
+            chat_id=update.effective_chat.id,
+            photo=photo,
+            caption=product_description,
+        )
     return 'HANDLE_MENU'
 
 
@@ -88,6 +96,7 @@ if __name__ == '__main__':
     client_id = os.getenv('CLIENT_ID')
     client_secret = os.getenv('CLIENT_SECRET')
     moltin_token = get_access_token(client_id, client_secret)
+    logging.info(f'token: {moltin_token}')
 
     database_password = os.getenv('DATABASE_PASSWORD')
     database_host = os.getenv('DATABASE_HOST')
