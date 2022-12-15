@@ -7,8 +7,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
 
-from moltin import (get_access_token, get_product,
-                    download_product_image, get_products)
+from moltin import (add_product_to_cart, add_product_id_to_cart, download_product_image,
+                    get_access_token, get_cart_items, get_product,
+                    get_product_price, get_product_stock, get_products)
 
 _database = None
 logger = logging.getLogger('tg-bot')
@@ -19,7 +20,7 @@ def start(update, context):
     moltin_token = db.get('moltin_token').decode("utf-8")
     products = get_products(moltin_token)
     keyboard = [
-        [InlineKeyboardButton(product['attributes']['name'],
+        [InlineKeyboardButton(product['name'],
                               callback_data=product['id'])]
         for product in products
     ]
@@ -29,8 +30,11 @@ def start(update, context):
 
 
 def handle_menu(update, context):
+    logging.info(f'handle_menu')
+
     db = context.bot_data['db']
     moltin_token = db.get('moltin_token').decode('utf-8')
+    #price_book_id = db.get('price_book_id').decode("utf-8")
     context.bot.delete_message(
         chat_id=update.effective_chat.id,
         message_id=update.callback_query.message.message_id,
@@ -41,10 +45,19 @@ def handle_menu(update, context):
     image_id = product['relationships']['main_image']['data']['id']
 
     product_image = download_product_image(image_id, moltin_token)
-    product_description = product['attributes']['description']
+    product_description = product['description']
+    #product_price = get_product_price(moltin_token, price_book_id, product['attributes']['sku'])
+    #product_stock = get_product_stock(moltin_token, product_id)
+    #price = product_price['attributes']['currencies']['USD']['amount']
+    #stock = product_stock['available']
 
-    reply_markup = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Назад", callback_data="go_back")]])
+    reply_markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton('1 шт', callback_data=f'{product_id}~1'),
+        ],
+        [InlineKeyboardButton('Корзина', callback_data='cart')],
+        [InlineKeyboardButton('Назад', callback_data='go_back')],
+    ])
 
     with open(product_image, 'rb') as photo:
         context.bot.send_photo(
@@ -53,21 +66,47 @@ def handle_menu(update, context):
             caption=product_description,
             reply_markup=reply_markup,
         )
-    return 'HANDLE_MENU'
+    return 'HANDLE_DESCRIPTION'
 
 
 def handle_description(update, context):
+    logging.info(f'handle_description')
+
     db = context.bot_data['db']
     moltin_token = db.get('moltin_token').decode('utf-8')
     callback = update.callback_query.data
-    if callback == 'go_back':
+    logging.info(f'callback: {callback}')
+    if callback == 'cart':
+        cart_id = update.effective_chat.id
+        print(get_cart_items(moltin_token, cart_id))
+    elif callback != 'go_back':
+        logging.info(f'callback: {callback}')
+        product_id, quantity = callback.split('~')
+        product = get_product(product_id, moltin_token)
+        cart_id = update.effective_chat.id
+        add_product_id_to_cart(
+            moltin_token,
+            cart_id,
+            product['sku'],
+            int(quantity)
+        )
+
+        #add_product_to_cart(
+        #    moltin_token,
+        #    cart_id,
+        #    product['attributes']['sku'],
+        #    int(quantity),
+        #    product['attributes']['name']
+        #)
+        return "HANDLE_DESCRIPTION"
+    else:
         context.bot.delete_message(
             chat_id=update.effective_chat.id,
             message_id=update.callback_query.message.message_id,
         )
         products = get_products(moltin_token)
         keyboard = [
-            [InlineKeyboardButton(product['attributes']['name'],
+            [InlineKeyboardButton(product['name'],
                                   callback_data=product['id'])]
             for product in products
         ]
@@ -81,6 +120,8 @@ def handle_description(update, context):
 
 
 def handle_users_reply(update, context):
+    logging.info(f'handle_users_reply')
+
     db = get_database_connection()
     if update.message:
         user_reply = update.message.text
@@ -137,7 +178,9 @@ if __name__ == '__main__':
         password=database_password
     )
     db.set('moltin_token', moltin_token)
-
+    #price_book_id = os.getenv('PRICE_BOOK_ID')
+    #db.set('price_book_id', price_book_id)
+    
     updater = Updater(os.getenv('TELEGRAM_TOKEN'))
     dispatcher = updater.dispatcher
     dispatcher.bot_data['db'] = db

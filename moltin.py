@@ -18,7 +18,7 @@ def get_access_token(client_id, client_secret):
 
 
 def get_products(token):
-    endpoint = 'https://api.moltin.com/pcm/products'
+    endpoint = 'https://api.moltin.com/v2/products'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
@@ -29,7 +29,7 @@ def get_products(token):
 
 
 def get_product(product_id, token):
-    endpoint = f'https://api.moltin.com/pcm/products/{product_id}'
+    endpoint = f'https://api.moltin.com/v2/products/{product_id}'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
@@ -40,7 +40,7 @@ def get_product(product_id, token):
 
 
 def get_product_image(product_id, token):
-    endpoint = f'https://api.moltin.com/pcm/products/{product_id}/relationships/main-image'
+    endpoint = f'https://api.moltin.com/v2/products/{product_id}/relationships/main-image'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
@@ -99,47 +99,64 @@ def create_cart(token, cart_name):
     return response.json()['data']
 
 
-def get_cart(token, cart_id):
-    endpoint = f'https://api.moltin.com/v2/carts/{cart_id}'
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json',
-    }
-    payload = {
-        'include': 'items'
-    }
-    response = requests.get(endpoint, headers=headers, params=payload)
+def get_cart_items(token, cart_id):
+    response = requests.get(
+        f'https://api.moltin.com/v2/carts/{cart_id}/items',
+        headers={'Authorization': f'Bearer {token}'}
+    )
     response.raise_for_status()
     return response.json()['data']
 
 
-def add_product_to_cart(token, cart_id, product):
+def add_product_id_to_cart(token, cart_id, product_sku, quantity):
+    endpoint = f'https://api.moltin.com/v2/carts/{cart_id}/items'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+    product_item = {
+        'data': {
+            'type': 'cart_item',
+            'sku': product_sku,
+            'quantity': quantity,
+        }
+    }
+    response = requests.post(
+        endpoint,
+        headers=headers,
+        json=product_item)
+    response.raise_for_status()
+    return response.json()
+
+
+def add_product_to_cart(token, cart_id, product_sku, quantity, name):
+    logging.info(f'add_product_to_cart')
     endpoint = f'https://api.moltin.com/v2/carts/{cart_id}/items'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
     }
 
-    product_item = {
-        'data': {
-            'type': 'custom_item',
-            'name': product['attributes']['name'],
-            'sku': product['attributes']['sku'],
-            'description': product['attributes']['description'],
-            'quantity': 1,
-            "price": {
-                "amount": 500
-            }
-        }
-    }
+    #product_item = {
+    #    'data': {
+    #        'type': 'custom_item',
+    #        'name': product['attributes']['name'],
+    #        'sku': product_sku,
+    #        'description': product['attributes']['description'],
+    #        'quantity': 1,
+    #        "price": {
+    #            "amount": 500
+    #        }
+    #    }
+    #}
 
     custom_item = {
       "data": {
         "type": "custom_item",
-        "name": "My Custom Item",
-        "sku": "my-custom-item",
-        "description": "My first custom item!",
-        "quantity": 1,
+        "name": name,
+        "sku": product_sku,
+        #"description": "My first custom item!",
+        "quantity": quantity,
         "price": {
           "amount": 10000
         }
@@ -151,6 +168,42 @@ def add_product_to_cart(token, cart_id, product):
         json=custom_item)
     response.raise_for_status()
     return response.json()
+
+
+def get_price_book_prices(token, price_book_id):
+    response = requests.get(
+        f'https://api.moltin.com/pcm/pricebooks/{price_book_id}/prices/',
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_product_price(token, price_book_id, product_sku):
+    prices = get_price_book_prices(token, price_book_id,)
+    price_id = None
+    for price in prices:
+        if price['sku'] == product_sku:
+            price_id = price['id']
+
+    if price_id is None:
+        return
+
+    response = requests.get(
+        f'https://api.moltin.com/pcm/pricebooks/{price_book_id}/prices/{price_id}',
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_product_stock(token, product_id):
+    response = requests.get(
+        f'https://api.moltin.com/v2/inventories/{product_id}',
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    response.raise_for_status()
+    return response.json()['data']
 
 
 def main():
