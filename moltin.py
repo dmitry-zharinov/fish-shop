@@ -179,6 +179,18 @@ def add_product_to_cart(token, cart_id, product_sku, quantity, name):
     return response.json()
 
 
+
+def remove_product_from_cart(token, cart_id, product_id):
+    response = requests.delete(
+        f'https://api.moltin.com/v2/carts/{cart_id}/items/{product_id}',
+        headers={
+            'Authorization': f'Bearer {token}',
+        },
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def get_price_book_prices(token, price_book_id):
     response = requests.get(
         f'https://api.moltin.com/pcm/pricebooks/{price_book_id}/prices/',

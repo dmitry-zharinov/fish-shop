@@ -9,7 +9,7 @@ from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
 
 from moltin import (add_product_to_cart, add_product_id_to_cart, download_product_image,
                     get_access_token, get_cart_items, get_product,
-                    get_product_price, get_product_stock, get_products, get_cart)
+                    get_product_price, get_product_stock, get_products, get_cart, remove_product_from_cart)
 
 _database = None
 logger = logging.getLogger('tg-bot')
@@ -53,7 +53,7 @@ def handle_menu(update, context):
 
     reply_markup = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton('1 шт', callback_data=f'{product_id}~1'),
+            InlineKeyboardButton('ДОбавить в корзину', callback_data=f'{product_id}~1'),
         ],
         [InlineKeyboardButton('Корзина', callback_data='cart')],
         [InlineKeyboardButton('Назад', callback_data='go_back')],
@@ -75,11 +75,10 @@ def handle_description(update, context):
     db = context.bot_data['db']
     token = db.get('moltin_token').decode('utf-8')
     callback = update.callback_query.data
-    logging.info(f'callback: {callback}')
 
     if callback == 'cart':
         show_cart_items(update, context, token)
-        return "HANDLE_DESCRIPTION"
+        return "HANDLE_CART"
     elif callback != 'go_back':
         add_item_to_cart(update, context, token)
         return "HANDLE_DESCRIPTION"
@@ -110,6 +109,7 @@ def show_items_menu(update, context, token):
 
 
 def add_item_to_cart(update, context, token):
+    callback = update.callback_query.data
     product_id, quantity = callback.split('~')
     product = get_product(product_id, token)
     cart_id = update.effective_chat.id
@@ -119,6 +119,10 @@ def add_item_to_cart(update, context, token):
         product['sku'],
         int(quantity)
     )
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"Товар {product['name']} добавлен в корзину!"
+        )
 
 
 def show_cart_items(update, context, token):
@@ -139,12 +143,40 @@ def show_cart_items(update, context, token):
         ]
         text.append(f"<b>Итого: {cart['meta']['display_price']['with_tax']['formatted']}</b>")
 
+        keyboard = [
+            [InlineKeyboardButton(f"Убрать из корзины {product['name']}", callback_data=product['id'])]
+            for product in cart_items
+        ]
+        keyboard.append([InlineKeyboardButton("В меню", callback_data='go_back')])
+
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="".join(text),
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
-        #return "HANDLE_DESCRIPTION"
+
+
+def handle_cart(update, context):
+    db = context.bot_data['db']
+    token = db.get('moltin_token').decode('utf-8')
+    callback = update.callback_query.data
+
+    if callback == 'go_back':
+        show_items_menu(update, context, token)
+        return 'HANDLE_MENU'
+    else:
+        context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.callback_query.message.message_id,
+        )
+        cart_id = update.effective_chat.id
+        remove_product_from_cart(token, cart_id, callback)
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"Товар удалён из корзины!"
+        )
+        return 'HANDLE_CART'
 
 
 def handle_users_reply(update, context):
@@ -170,6 +202,7 @@ def handle_users_reply(update, context):
         'START': start,
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
+        'HANDLE_CART': handle_cart,
     }
     state_handler = states_functions[user_state]
     try:
