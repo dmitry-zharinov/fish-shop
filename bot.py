@@ -183,6 +183,17 @@ def handle_cart(update, context):
         return "HANDLE_CART"
 
 
+def handle_email(update, context):
+    db = context.bot_data["db"]
+    # token = db.get("moltin_token").decode("utf-8")
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"Вы прислали мне эту почту: {update.message.text}",
+    )
+    return 'START'
+
+
+
 def handle_users_reply(update, context):
     db = get_database_connection()
     if update.message:
@@ -205,6 +216,7 @@ def handle_users_reply(update, context):
         "HANDLE_MENU": handle_menu,
         "HANDLE_DESCRIPTION": handle_description,
         "HANDLE_CART": handle_cart,
+        'WAITING_EMAIL': handle_email,
     }
     state_handler = states_functions[user_state]
     try:
