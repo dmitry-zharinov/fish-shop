@@ -1,5 +1,6 @@
 import logging
 import os
+from time import time
 
 import redis
 from dotenv import load_dotenv
@@ -13,12 +14,13 @@ from telegram.ext import (
 )
 
 from moltin import (
-    add_product_id_to_cart,
+    add_product_to_cart,
     download_product_image,
     get_access_token,
     get_cart_items,
     get_product,
     get_products,
+    create_customer,
     get_cart,
     remove_product_from_cart,
 )
@@ -29,8 +31,8 @@ logger = logging.getLogger("tg-bot")
 
 def start(update, context):
     db = context.bot_data["db"]
-    moltin_token = db.get("moltin_token").decode("utf-8")
-    products = get_products(moltin_token)
+    token = db.get("access_token").decode("utf-8")
+    products = get_products(token)
     keyboard = [
         [InlineKeyboardButton(product["name"], callback_data=product["id"])]
         for product in products
@@ -42,25 +44,24 @@ def start(update, context):
 
 def handle_menu(update, context):
     db = context.bot_data["db"]
-    moltin_token = db.get("moltin_token").decode("utf-8")
-    # price_book_id = db.get('price_book_id').decode("utf-8")
+    token = db.get("access_token").decode("utf-8")
     context.bot.delete_message(
         chat_id=update.effective_chat.id,
         message_id=update.callback_query.message.message_id,
     )
     callback = update.callback_query.data
     product_id = callback
-    product = get_product(product_id, moltin_token)
+    product = get_product(product_id, token)
     image_id = product["relationships"]["main_image"]["data"]["id"]
 
-    product_image = download_product_image(image_id, moltin_token)
+    product_image = download_product_image(image_id, token)
     product_description = product["description"]
 
     reply_markup = InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
-                    "ДОбавить в корзину", callback_data=f"{product_id}~1"
+                    "Добавить в корзину", callback_data=f"{product_id}~1"
                 ),
             ],
             [InlineKeyboardButton("Корзина", callback_data="cart")],
@@ -80,7 +81,7 @@ def handle_menu(update, context):
 
 def handle_description(update, context):
     db = context.bot_data["db"]
-    token = db.get("moltin_token").decode("utf-8")
+    token = db.get("access_token").decode("utf-8")
     callback = update.callback_query.data
 
     if callback == "cart":
@@ -99,7 +100,7 @@ def show_items_menu(update, context, token):
         chat_id=update.effective_chat.id,
         message_id=update.callback_query.message.message_id,
     )
-    products = get_products(moltin_token)
+    products = get_products(token)
     keyboard = [
         [InlineKeyboardButton(product["name"], callback_data=product["id"])]
         for product in products
@@ -117,7 +118,7 @@ def add_item_to_cart(update, context, token):
     product_id, quantity = callback.split("~")
     product = get_product(product_id, token)
     cart_id = update.effective_chat.id
-    add_product_id_to_cart(token, cart_id, product["sku"], int(quantity))
+    add_product_to_cart(token, cart_id, product["sku"], int(quantity))
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=f"Товар {product['name']} добавлен в корзину!",
@@ -147,11 +148,13 @@ def show_cart_items(update, context, token):
     keyboard = [
         [
             InlineKeyboardButton(
-                f"Убрать из корзины {product['name']}", callback_data=product["id"]
+                f"Убрать из корзины {product['name']}",
+                callback_data=product["id"]
             )
         ]
         for product in cart_items
     ]
+    keyboard.append([InlineKeyboardButton("К оплате", callback_data='pay')])
     keyboard.append([InlineKeyboardButton("В меню", callback_data="go_back")])
 
     context.bot.send_message(
@@ -164,12 +167,18 @@ def show_cart_items(update, context, token):
 
 def handle_cart(update, context):
     db = context.bot_data["db"]
-    token = db.get("moltin_token").decode("utf-8")
+    token = db.get("access_token").decode("utf-8")
     callback = update.callback_query.data
 
     if callback == "go_back":
         show_items_menu(update, context, token)
         return "HANDLE_MENU"
+    elif callback == 'pay':
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Пожалуйста, укажите вашу почту:',
+        )
+        return 'WAITING_EMAIL'
     else:
         context.bot.delete_message(
             chat_id=update.effective_chat.id,
@@ -177,21 +186,30 @@ def handle_cart(update, context):
         )
         cart_id = update.effective_chat.id
         remove_product_from_cart(token, cart_id, callback)
+
         context.bot.send_message(
-            chat_id=update.effective_chat.id, text="Товар удалён из корзины!"
+            chat_id=update.effective_chat.id, text="Товар удалён из корзины!",
         )
         return "HANDLE_CART"
 
 
 def handle_email(update, context):
     db = context.bot_data["db"]
-    # token = db.get("moltin_token").decode("utf-8")
+    token = db.get("access_token").decode("utf-8")
+    email = update.message.text
     context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=f"Вы прислали мне эту почту: {update.message.text}",
+        text=f"Вы прислали мне эту почту: {email}",
     )
-    return 'START'
 
+    create_customer(email, token)
+
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Заказ передан менеджеру, он свяжется с вами в ближайшее время.",
+    )
+
+    return 'START'
 
 
 def handle_users_reply(update, context):
@@ -220,6 +238,14 @@ def handle_users_reply(update, context):
     }
     state_handler = states_functions[user_state]
     try:
+        token_expires = int(db.get("access_token_expires").decode("utf-8"))
+        if token_expires < time():
+            client_id = db.get("client_id").decode("utf-8")
+            client_secret = db.get("client_secret").decode("utf-8")
+            token = get_access_token(client_id, client_secret)
+            db.set("access_token", token["access_token"])
+            db.set("access_token_expires", token["expires"])
+
         next_state = state_handler(update, context)
         db.set(chat_id, next_state)
     except Exception as err:
@@ -241,14 +267,21 @@ if __name__ == "__main__":
 
     client_id = os.getenv("CLIENT_ID")
     client_secret = os.getenv("CLIENT_SECRET")
-    moltin_token = get_access_token(client_id, client_secret)
-    logging.info(f"token: {moltin_token}")
+    access_token = get_access_token(client_id, client_secret)
 
     database_password = os.getenv("DATABASE_PASSWORD")
     database_host = os.getenv("DATABASE_HOST")
     database_port = os.getenv("DATABASE_PORT")
-    db = redis.Redis(host=database_host, port=database_port, password=database_password)
-    db.set("moltin_token", moltin_token)
+    db = redis.Redis(
+        host=database_host,
+        port=database_port,
+        password=database_password)
+    db.set("access_token", access_token['access_token'])
+    db.set("access_token_expires", access_token["expires"])
+    db.set("client_id", client_id)
+    db.set("client_secret", client_secret)
+
+
     # price_book_id = os.getenv('PRICE_BOOK_ID')
     # db.set('price_book_id', price_book_id)
 
