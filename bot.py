@@ -3,13 +3,13 @@ import os
 
 import redis
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
 
 from moltin import (add_product_to_cart, add_product_id_to_cart, download_product_image,
                     get_access_token, get_cart_items, get_product,
-                    get_product_price, get_product_stock, get_products)
+                    get_product_price, get_product_stock, get_products, get_cart)
 
 _database = None
 logger = logging.getLogger('tg-bot')
@@ -73,50 +73,78 @@ def handle_description(update, context):
     logging.info(f'handle_description')
 
     db = context.bot_data['db']
-    moltin_token = db.get('moltin_token').decode('utf-8')
+    token = db.get('moltin_token').decode('utf-8')
     callback = update.callback_query.data
     logging.info(f'callback: {callback}')
-    if callback == 'cart':
-        cart_id = update.effective_chat.id
-        print(get_cart_items(moltin_token, cart_id))
-    elif callback != 'go_back':
-        logging.info(f'callback: {callback}')
-        product_id, quantity = callback.split('~')
-        product = get_product(product_id, moltin_token)
-        cart_id = update.effective_chat.id
-        add_product_id_to_cart(
-            moltin_token,
-            cart_id,
-            product['sku'],
-            int(quantity)
-        )
 
-        #add_product_to_cart(
-        #    moltin_token,
-        #    cart_id,
-        #    product['attributes']['sku'],
-        #    int(quantity),
-        #    product['attributes']['name']
-        #)
+    if callback == 'cart':
+        show_cart_items(update, context, token)
+        return "HANDLE_DESCRIPTION"
+    elif callback != 'go_back':
+        add_item_to_cart(update, context, token)
         return "HANDLE_DESCRIPTION"
     else:
-        context.bot.delete_message(
-            chat_id=update.effective_chat.id,
-            message_id=update.callback_query.message.message_id,
-        )
-        products = get_products(moltin_token)
-        keyboard = [
-            [InlineKeyboardButton(product['name'],
-                                  callback_data=product['id'])]
-            for product in products
+        show_items_menu(update, context, token)
+        return 'HANDLE_MENU'
+
+
+def show_items_menu(update, context, token):
+    context.bot.delete_message(
+        chat_id=update.effective_chat.id,
+        message_id=update.callback_query.message.message_id,
+    )
+    products = get_products(moltin_token)
+    keyboard = [
+        [InlineKeyboardButton(
+            product['name'],
+            callback_data=product['id'])
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        for product in products
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='Выберите товар:',
+        reply_markup=reply_markup
+    )
+
+
+def add_item_to_cart(update, context, token):
+    product_id, quantity = callback.split('~')
+    product = get_product(product_id, token)
+    cart_id = update.effective_chat.id
+    add_product_id_to_cart(
+        token,
+        cart_id,
+        product['sku'],
+        int(quantity)
+    )
+
+
+def show_cart_items(update, context, token):
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text='Выберите товар:',
-            reply_markup=reply_markup
+            text="<b>Ваша корзина:</b>",
+            parse_mode=ParseMode.HTML
         )
-        return 'HANDLE_MENU'
+
+        cart_id = update.effective_chat.id
+        cart = get_cart(token, cart_id)
+        cart_items = get_cart_items(token, cart_id)
+        text = [
+            f"""{num+1}. {product['name']}
+            {product['meta']['display_price']['with_tax']['unit']['formatted']} за шт.
+            {product['quantity']} шт. в корзине на сумму {product['meta']['display_price']['with_tax']['value']['formatted']}\n\n"""
+            for num, product in enumerate(cart_items)
+        ]
+        text.append(f"<b>Итого: {cart['meta']['display_price']['with_tax']['formatted']}</b>")
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="".join(text),
+            parse_mode=ParseMode.HTML
+        )
+        #return "HANDLE_DESCRIPTION"
 
 
 def handle_users_reply(update, context):

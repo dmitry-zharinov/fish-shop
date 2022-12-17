@@ -99,6 +99,15 @@ def create_cart(token, cart_name):
     return response.json()['data']
 
 
+def get_cart(token, cart_id):
+    response = requests.get(
+        f'https://api.moltin.com/v2/carts/{cart_id}',
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
 def get_cart_items(token, cart_id):
     response = requests.get(
         f'https://api.moltin.com/v2/carts/{cart_id}/items',
