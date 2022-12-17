@@ -281,10 +281,6 @@ if __name__ == "__main__":
     db.set("client_id", client_id)
     db.set("client_secret", client_secret)
 
-
-    # price_book_id = os.getenv('PRICE_BOOK_ID')
-    # db.set('price_book_id', price_book_id)
-
     updater = Updater(os.getenv("TELEGRAM_TOKEN"))
     dispatcher = updater.dispatcher
     dispatcher.bot_data["db"] = db

@@ -59,7 +59,7 @@ def download_product_image(image_id, token):
 
 
 def create_customer(email, token):
-    err = requests.post(
+    response = requests.post(
         'https://api.moltin.com/v2/customers',
         headers={
             'Authorization': f'Bearer {token}',
