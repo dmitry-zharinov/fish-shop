@@ -60,15 +60,15 @@ def download_product_image(image_id, token):
 
 def create_customer(email, token):
     response = requests.post(
-        'https://api.moltin.com/v2/customers',
+        "https://api.moltin.com/v2/customers",
         headers={
-            'Authorization': f'Bearer {token}',
+            "Authorization": f"Bearer {token}",
         },
         json={
-            'data': {
-                'type': 'customer',
-                'name': email,
-                'email': email,
+            "data": {
+                "type": "customer",
+                "name": email,
+                "email": email,
             }
         },
     )

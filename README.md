@@ -16,12 +16,13 @@ pip install -r requirements.txt
 3. Для Telegram: необходимо [зарегистрировать бота и получить его API-токен](https://telegram.me/BotFather)
 4. В директории скрипта создайте файл `.env` и укажите в нём следующие данные:
 
-- `CLIENT_SECRET` - CLIENT_SECRET из ключа приложения в [Elastic Path](https://euwest.cm.elasticpath.com/application-keys)
-- `CLIENT_ID` - CLIENT_ID из ключа приложения в [Elastic Path](https://euwest.cm.elasticpath.com/application-keys)
+- `CLIENT_SECRET` — CLIENT_SECRET из ключа приложения в [Elastic Path](https://euwest.cm.elasticpath.com/application-keys)
+- `CLIENT_ID` — CLIENT_ID из ключа приложения в [Elastic Path](https://euwest.cm.elasticpath.com/application-keys)
 - `TELEGRAM_TOKEN` — токен для Telegram-бота, полученный от Bot Father.
-- `DATABASE_HOST` - url подключения к базе данных Redis, можно получить [в личном кабинете](https://app.redislabs.com) после регистрации 
-- `DATABASE_PORT` - порт базы данных Redis
-- `DATABASE_PASSWORD` - пароль для подключения к базе данных Redis
+- `ADMIN_USER` — id чата Telegram, куда будут отправляться логи (можно узнать у @userinfobot).
+- `DATABASE_HOST` — url подключения к базе данных Redis, можно получить [в личном кабинете](https://app.redislabs.com) после регистрации 
+- `DATABASE_PORT` — порт базы данных Redis
+- `DATABASE_PASSWORD` — пароль для подключения к базе данных Redis
 
 Пример:
 ```
@@ -31,6 +32,7 @@ TELEGRAM_TOKEN=12332454:AAFLMWGT4otu_8_YH5_k4J_6ssGRfvGdwq
 DATABASE_HOST=redis-12345.c555.us-east-1-3.ec2.cloud.redislabs.com
 DATABASE_PORT=13627
 DATABASE_PASSWORD=TRHhEFJYTrehjtyjtjtLg
+TELEGRAM_ADMIN_USER=55555555
 ```
 
 ### Запуск бота 

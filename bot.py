@@ -12,6 +12,7 @@ from telegram.ext import (
     MessageHandler,
     Updater,
 )
+from bot_logging import TelegramLogsHandler
 
 from moltin import (
     add_product_to_cart,
@@ -154,7 +155,7 @@ def show_cart_items(update, context, token):
         ]
         for product in cart_items
     ]
-    keyboard.append([InlineKeyboardButton("К оплате", callback_data='pay')])
+    keyboard.append([InlineKeyboardButton("К оплате", callback_data="pay")])
     keyboard.append([InlineKeyboardButton("В меню", callback_data="go_back")])
 
     context.bot.send_message(
@@ -173,12 +174,12 @@ def handle_cart(update, context):
     if callback == "go_back":
         show_items_menu(update, context, token)
         return "HANDLE_MENU"
-    elif callback == 'pay':
+    elif callback == "pay":
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text='Пожалуйста, укажите вашу почту:',
+            text="Пожалуйста, укажите вашу почту:",
         )
-        return 'WAITING_EMAIL'
+        return "WAITING_EMAIL"
     else:
         context.bot.delete_message(
             chat_id=update.effective_chat.id,
@@ -188,7 +189,8 @@ def handle_cart(update, context):
         remove_product_from_cart(token, cart_id, callback)
 
         context.bot.send_message(
-            chat_id=update.effective_chat.id, text="Товар удалён из корзины!",
+            chat_id=update.effective_chat.id,
+            text="Товар удалён из корзины!",
         )
         return "HANDLE_CART"
 
@@ -209,7 +211,7 @@ def handle_email(update, context):
         text="Заказ передан менеджеру, он свяжется с вами в ближайшее время.",
     )
 
-    return 'START'
+    return "START"
 
 
 def handle_users_reply(update, context):
@@ -234,7 +236,7 @@ def handle_users_reply(update, context):
         "HANDLE_MENU": handle_menu,
         "HANDLE_DESCRIPTION": handle_description,
         "HANDLE_CART": handle_cart,
-        'WAITING_EMAIL': handle_email,
+        "WAITING_EMAIL": handle_email,
     }
     state_handler = states_functions[user_state]
     try:
@@ -263,7 +265,14 @@ def get_database_connection():
 
 if __name__ == "__main__":
     load_dotenv()
+
+    tg_token = os.getenv("TELEGRAM_TOKEN")
+    admin_user = os.getenv("TELEGRAM_ADMIN_USER")
+
     logging.basicConfig(level=logging.INFO)
+    logger.addHandler(
+        TelegramLogsHandler(tg_token, admin_user)
+    )
 
     client_id = os.getenv("CLIENT_ID")
     client_secret = os.getenv("CLIENT_SECRET")
@@ -276,12 +285,12 @@ if __name__ == "__main__":
         host=database_host,
         port=database_port,
         password=database_password)
-    db.set("access_token", access_token['access_token'])
+    db.set("access_token", access_token["access_token"])
     db.set("access_token_expires", access_token["expires"])
     db.set("client_id", client_id)
     db.set("client_secret", client_secret)
 
-    updater = Updater(os.getenv("TELEGRAM_TOKEN"))
+    updater = Updater(tg_token)
     dispatcher = updater.dispatcher
     dispatcher.bot_data["db"] = db
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
