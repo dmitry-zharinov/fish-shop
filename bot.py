@@ -126,10 +126,8 @@ def add_item_to_cart(update, context, token):
     product = get_product(product_id, token)
     cart_id = update.effective_chat.id
     add_product_to_cart(token, cart_id, product["sku"], int(quantity))
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"Товар {product['name']} добавлен в корзину!",
-    )
+    update.callback_query.answer(
+        f"Товар {product['name']} добавлен в корзину!")
 
 
 def show_cart_items(update, context, token):
@@ -142,7 +140,7 @@ def show_cart_items(update, context, token):
     cart_text = [
         f"<b>{num+1}. {product['name']}</b>\n"
         f"{product['meta']['display_price']['with_tax']['unit']['formatted']}"
-        f"за шт.\n"
+        f" за шт.\n"
         f"{product['quantity']} шт. в корзине на сумму "
         f"{product['meta']['display_price']['with_tax']['value']['formatted']}"
         f"\n\n"
@@ -196,12 +194,8 @@ def handle_cart(update, context):
         )
         cart_id = update.effective_chat.id
         remove_product_from_cart(token, cart_id, callback)
-
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Товар удалён из корзины!",
-        )
-        return "HANDLE_CART"
+        update.callback_query.answer("Товар удалён из корзины!")
+        return "HANDLE_DESCRIPTION"
 
 
 def handle_email(update, context):
