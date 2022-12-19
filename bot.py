@@ -39,7 +39,7 @@ def start(update, context):
         for product in products
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Выберите товар:", reply_markup=reply_markup)
+    update.message.reply_text("🛍 Выберите товар:", reply_markup=reply_markup)
     return "HANDLE_MENU"
 
 
@@ -56,17 +56,22 @@ def handle_menu(update, context):
     image_id = product["relationships"]["main_image"]["data"]["id"]
 
     product_image = download_product_image(image_id, token)
-    product_description = product["description"]
+    product_description = f"""
+    <b>{product["name"]}</b>\n\n
+    {product["description"]}\n\n
+    <i><b>Цена: {product['meta']['display_price']['with_tax']['formatted']}
+    </b></i>
+    """
 
     reply_markup = InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
-                    "Добавить в корзину", callback_data=f"{product_id}~1"
+                    "➕ Добавить в корзину", callback_data=f"{product_id}~1"
                 ),
             ],
-            [InlineKeyboardButton("Корзина", callback_data="cart")],
-            [InlineKeyboardButton("Назад", callback_data="go_back")],
+            [InlineKeyboardButton("🛒 Корзина", callback_data="cart")],
+            [InlineKeyboardButton("🔙 Назад", callback_data="go_back")],
         ]
     )
 
@@ -76,6 +81,7 @@ def handle_menu(update, context):
             photo=photo,
             caption=product_description,
             reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML,
         )
     return "HANDLE_DESCRIPTION"
 
@@ -127,36 +133,39 @@ def add_item_to_cart(update, context, token):
 
 
 def show_cart_items(update, context, token):
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="<b>Ваша корзина:</b>",
-        parse_mode=ParseMode.HTML,
-    )
-
     cart_id = update.effective_chat.id
     cart = get_cart(token, cart_id)
     cart_items = get_cart_items(token, cart_id)
-    text = [
-        f"""{num+1}. {product['name']}
-            {product['meta']['display_price']['with_tax']['unit']['formatted']} за шт.
-            {product['quantity']} шт. в корзине на сумму {product['meta']['display_price']['with_tax']['value']['formatted']}\n\n"""
+
+    text = list()
+    text.append('<b>🛒 Ваша корзина:</b>\n')
+    cart_text = [
+        f"<b>{num+1}. {product['name']}</b>\n"
+        f"{product['meta']['display_price']['with_tax']['unit']['formatted']}"
+        f"за шт.\n"
+        f"{product['quantity']} шт. в корзине на сумму "
+        f"{product['meta']['display_price']['with_tax']['value']['formatted']}"
+        f"\n\n"
         for num, product in enumerate(cart_items)
     ]
+    text.extend(cart_text)
     text.append(
-        f"<b>Итого: {cart['meta']['display_price']['with_tax']['formatted']}</b>"
+        f"<b>Итого: "
+        f"{cart['meta']['display_price']['with_tax']['formatted']}</b>"
     )
 
     keyboard = [
         [
             InlineKeyboardButton(
-                f"Убрать из корзины {product['name']}",
+                f"🗑 Убрать {product['name']}",
                 callback_data=product["id"]
             )
         ]
         for product in cart_items
     ]
-    keyboard.append([InlineKeyboardButton("К оплате", callback_data="pay")])
-    keyboard.append([InlineKeyboardButton("В меню", callback_data="go_back")])
+    keyboard.append([InlineKeyboardButton("✅ К оплате", callback_data="pay")])
+    keyboard.append(
+        [InlineKeyboardButton("🔙 В меню", callback_data="go_back")])
 
     context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -177,7 +186,7 @@ def handle_cart(update, context):
     elif callback == "pay":
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Пожалуйста, укажите вашу почту:",
+            text="📧 Пожалуйста, укажите вашу почту:",
         )
         return "WAITING_EMAIL"
     else:
@@ -251,7 +260,7 @@ def handle_users_reply(update, context):
         next_state = state_handler(update, context)
         db.set(chat_id, next_state)
     except Exception as err:
-        print(err)
+        logging.exception(err)
 
 
 def get_database_connection():
