@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import requests
 
 
@@ -37,6 +39,8 @@ def get_product(product_id, token):
 
 
 def download_product_image(image_id, token):
+    IMG_FOLDER_NAME = "tmp"
+
     endpoint = f"https://api.moltin.com/v2/files/{image_id}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -49,6 +53,7 @@ def download_product_image(image_id, token):
 
     image_url = image_metadata["link"]["href"]
     image_name = image_metadata["file_name"]
+    Path(IMG_FOLDER_NAME).mkdir(parents=True, exist_ok=True)
     image_path = os.path.join("tmp", image_name)
 
     response = requests.get(image_url)
