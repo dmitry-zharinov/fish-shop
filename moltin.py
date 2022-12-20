@@ -45,10 +45,10 @@ def download_product_image(image_id, token):
     response = requests.get(endpoint, headers=headers)
 
     response.raise_for_status()
-    decoded_response = response.json()["data"]
+    image_metadata = response.json()["data"]
 
-    image_url = decoded_response["link"]["href"]
-    image_name = decoded_response["file_name"]
+    image_url = image_metadata["link"]["href"]
+    image_name = image_metadata["file_name"]
     image_path = os.path.join("tmp", image_name)
 
     response = requests.get(image_url)
@@ -120,7 +120,3 @@ def remove_product_from_cart(token, cart_id, product_id):
     )
     response.raise_for_status()
     return response.json()
-
-
-if __name__ == "__main__":
-    pass

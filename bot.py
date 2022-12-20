@@ -1,55 +1,33 @@
 import logging
 import os
+from textwrap import dedent
 from time import time
 
 import redis
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
-from telegram.ext import (
-    CallbackQueryHandler,
-    CommandHandler,
-    Filters,
-    MessageHandler,
-    Updater,
-)
+from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
+                          MessageHandler, Updater)
+
 from bot_logging import TelegramLogsHandler
+from moltin import (add_product_to_cart, create_customer,
+                    download_product_image, get_access_token, get_cart,
+                    get_cart_items, get_product, get_products,
+                    remove_product_from_cart)
 
-from moltin import (
-    add_product_to_cart,
-    download_product_image,
-    get_access_token,
-    get_cart_items,
-    get_product,
-    get_products,
-    create_customer,
-    get_cart,
-    remove_product_from_cart,
-)
-
-_database = None
 logger = logging.getLogger("tg-bot")
 
 
 def start(update, context):
     db = context.bot_data["db"]
     token = db.get("access_token").decode("utf-8")
-    products = get_products(token)
-    keyboard = [
-        [InlineKeyboardButton(product["name"], callback_data=product["id"])]
-        for product in products
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("🛍 Выберите товар:", reply_markup=reply_markup)
+    show_items_menu(update, context, token)
     return "HANDLE_MENU"
 
 
 def handle_menu(update, context):
     db = context.bot_data["db"]
     token = db.get("access_token").decode("utf-8")
-    context.bot.delete_message(
-        chat_id=update.effective_chat.id,
-        message_id=update.callback_query.message.message_id,
-    )
     callback = update.callback_query.data
     product_id = callback
     product = get_product(product_id, token)
@@ -83,6 +61,10 @@ def handle_menu(update, context):
             reply_markup=reply_markup,
             parse_mode=ParseMode.HTML,
         )
+        context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.callback_query.message.message_id,
+        )
     return "HANDLE_DESCRIPTION"
 
 
@@ -99,14 +81,14 @@ def handle_description(update, context):
         return "HANDLE_DESCRIPTION"
     else:
         show_items_menu(update, context, token)
+        context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.callback_query.message.message_id,
+        )
         return "HANDLE_MENU"
 
 
 def show_items_menu(update, context, token):
-    context.bot.delete_message(
-        chat_id=update.effective_chat.id,
-        message_id=update.callback_query.message.message_id,
-    )
     products = get_products(token)
     keyboard = [
         [InlineKeyboardButton(product["name"], callback_data=product["id"])]
@@ -115,7 +97,7 @@ def show_items_menu(update, context, token):
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Выберите товар:",
+        text="🛍 Выберите товар:",
         reply_markup=reply_markup,
     )
 
@@ -138,12 +120,12 @@ def show_cart_items(update, context, token):
     text = list()
     text.append('<b>🛒 Ваша корзина:</b>\n')
     cart_text = [
-        f"<b>{num+1}. {product['name']}</b>\n"
-        f"{product['meta']['display_price']['with_tax']['unit']['formatted']}"
-        f" за шт.\n"
-        f"{product['quantity']} шт. в корзине на сумму "
-        f"{product['meta']['display_price']['with_tax']['value']['formatted']}"
-        f"\n\n"
+        dedent(f'''\
+ <b>{num+1}. {product['name']}</b>
+{product['meta']['display_price']['with_tax']['unit']['formatted']} за шт.
+{product['quantity']} шт. в корзине на сумму \
+{product['meta']['display_price']['with_tax']['value']['formatted']}\n
+        ''')
         for num, product in enumerate(cart_items)
     ]
     text.extend(cart_text)
@@ -180,6 +162,10 @@ def handle_cart(update, context):
 
     if callback == "go_back":
         show_items_menu(update, context, token)
+        context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.callback_query.message.message_id,
+        )
         return "HANDLE_MENU"
     elif callback == "pay":
         context.bot.send_message(
@@ -218,7 +204,7 @@ def handle_email(update, context):
 
 
 def handle_users_reply(update, context):
-    db = get_database_connection()
+    db = context.bot_data["db"]
     if update.message:
         user_reply = update.message.text
         chat_id = update.message.chat_id
@@ -229,8 +215,6 @@ def handle_users_reply(update, context):
         return
     if user_reply == "/start":
         user_state = "START"
-    elif user_reply == "go_back":
-        user_state = "HANDLE_DESCRIPTION"
     else:
         user_state = db.get(chat_id).decode("utf-8")
 
@@ -255,15 +239,6 @@ def handle_users_reply(update, context):
         db.set(chat_id, next_state)
     except Exception as err:
         logging.exception(err)
-
-
-def get_database_connection():
-    global _database
-    if _database is None:
-        _database = redis.Redis(
-            host=database_host, port=database_port, password=database_password
-        )
-    return _database
 
 
 if __name__ == "__main__":
