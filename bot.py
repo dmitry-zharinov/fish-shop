@@ -121,10 +121,12 @@ def show_cart_items(update, context, token):
     text.append('<b>🛒 Ваша корзина:</b>\n')
     cart_text = [
         dedent(f'''\
- <b>{num+1}. {product['name']}</b>
-{product['meta']['display_price']['with_tax']['unit']['formatted']} за шт.
-{product['quantity']} шт. в корзине на сумму \
-{product['meta']['display_price']['with_tax']['value']['formatted']}\n
+            <b>{num+1}. {product['name']}</b>
+            {product['meta']['display_price']
+            ['with_tax']['unit']['formatted']} за шт.
+            {product['quantity']} шт. в корзине на сумму \
+            {product['meta']['display_price']
+            ['with_tax']['value']['formatted']}\n
         ''')
         for num, product in enumerate(cart_items)
     ]
